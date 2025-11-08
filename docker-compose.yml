@@ -1,0 +1,198 @@
+version: '3.9'
+
+services:
+  # =========================
+  # MySQL for Orders + Shipments
+  # =========================
+  mysql_db:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: yourpassword
+      MYSQL_DATABASE: order_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -pyourpassword || exit 1"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+  # =========================
+  # Postgres Databases
+  # =========================
+  postgres_catalog:
+    image: postgres:16-alpine
+    container_name: postgres_catalog
+    environment:
+      POSTGRES_USER: poojasrinivasan
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: catalog_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_catalog_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U poojasrinivasan -d catalog_db"]
+      interval: 5s
+      retries: 10
+
+  postgres_customer:
+    image: postgres:16-alpine
+    container_name: postgres_customer
+    environment:
+      POSTGRES_USER: poojasrinivasan
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: customer_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_customer_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U poojasrinivasan -d customer_db"]
+      interval: 5s
+      retries: 10
+
+  postgres_inventory:
+    image: postgres:16-alpine
+    container_name: postgres_inventory
+    environment:
+      POSTGRES_USER: poojasrinivasan
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: inventory_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg_inventory_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U poojasrinivasan -d inventory_db"]
+      interval: 5s
+      retries: 10
+
+  # =========================
+  # Services
+  # =========================
+  catalogservice:
+    build:
+      context: ./catalog-service
+      dockerfile: Dockerfile
+    container_name: catalogservice
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres_catalog:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres_catalog
+      DB_PORT: 5432
+      DB_USER: poojasrinivasan
+      DB_PASSWORD: password
+      DB_NAME: catalog_db
+    volumes:
+      - ./catalog-service/config:/app/config
+
+  customerservice:
+    build:
+      context: ./customerservice
+      dockerfile: Dockerfile
+    container_name: customerservice
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres_customer:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres_customer
+      DB_PORT: 5432
+      DB_USER: poojasrinivasan
+      DB_PASSWORD: password
+      DB_NAME: customer_db
+    volumes:
+      - ./customerservice/config:/app/config
+
+  inventoryservice:
+    build:
+      context: ./inventoryservice
+      dockerfile: Dockerfile
+    container_name: inventoryservice
+    ports:
+      - "3002:3000"
+    depends_on:
+      postgres_inventory:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres_inventory
+      DB_PORT: 5432
+      DB_USER: poojasrinivasan
+      DB_PASSWORD: password
+      DB_NAME: inventory_db
+    volumes:
+      - ./inventoryservice/config:/app/config
+
+  order_service:
+    build:
+      context: ./Scalable_Services_Assignment_Orders_Services_PS4
+      dockerfile: Dockerfile
+    container_name: order_service
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: yourpassword
+      DB_NAME: order_db
+
+  shipment_service:
+    build:
+      context: ./Scalable_Services_Assignment_Shipment_Services_PS4
+      dockerfile: Dockerfile
+    container_name: shipment_service
+    ports:
+      - "8001:8001"
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: yourpassword
+      DB_NAME: order_db
+
+  payment_service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: payment_service
+    ports:
+      - "8002:8002"
+    depends_on:
+      - postgres_catalog
+    environment:
+      DB_HOST: postgres_catalog
+      DB_PORT: 5432
+      DB_USER: poojasrinivasan
+      DB_PASSWORD: password
+      DB_NAME: catalog_db
+
+  notification_service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification_service
+    ports:
+      - "8080:8080"
+    depends_on:
+      - payment_service
+
+volumes:
+  mysql_data:
+  pg_catalog_data:
+  pg_customer_data:
+  pg_inventory_data:
