@@ -1,0 +1,74 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # E-Commerce Microservices
+  - job_name: 'catalog-service'
+    static_configs:
+      - targets: ['catalog-service:8080']
+    scrape_interval: 10s
+    metrics_path: '/v1/metrics'
+
+  - job_name: 'inventory-service'
+    static_configs:
+      - targets: ['inventoryservice:8080']
+    scrape_interval: 10s
+    metrics_path: '/v1/metrics'
+
+  - job_name: 'customer-service'
+    static_configs:
+      - targets: ['customerservice:8080']
+    scrape_interval: 10s
+    metrics_path: '/v1/metrics'
+
+  - job_name: 'payment-service'
+    static_configs:
+      - targets: ['payment-service:8080']
+    scrape_interval: 10s
+    metrics_path: '/v1/metrics'
+
+  - job_name: 'order-service'
+    static_configs:
+      - targets: ['order-service:8080']
+    scrape_interval: 10s
+    metrics_path: '/health'
+
+  - job_name: 'shipment-service'
+    static_configs:
+      - targets: ['shipment-service:8080']
+    scrape_interval: 10s
+    metrics_path: '/health'
+
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification_service:8080']
+    scrape_interval: 10s
+    metrics_path: '/health'
+
+  # Database Monitoring
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres_main:5432']
+    scrape_interval: 30s
+
+  - job_name: 'mysql-exporter'
+    static_configs:
+      - targets: ['mysql_db:3306']
+    scrape_interval: 30s

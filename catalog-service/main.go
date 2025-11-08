@@ -41,11 +41,22 @@ func main() {
 	}
 
 	router := gin.Default()
-	router.GET("/api/getproductbyid", catalog_service.GetProductById)
-	router.GET("/api/getallproduct", catalog_service.GetAllProducts)
-	router.POST("/api/addproduct", catalog_service.AddProduct)
-	router.DELETE("/api/deleteproduct", catalog_service.DeleteProduct)
-	router.PATCH("/api/updateproduct", catalog_service.UpdateProduct)
+
+	// Add health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "healthy", "service": "catalog"})
+	})
+
+	// API versioning with /v1
+	v1 := router.Group("/v1")
+	{
+		v1.GET("/products/:id", catalog_service.GetProductById)
+		v1.GET("/products", catalog_service.GetAllProducts)
+		v1.POST("/products", catalog_service.AddProduct)
+		v1.DELETE("/products/:id", catalog_service.DeleteProduct)
+		v1.PATCH("/products/:id", catalog_service.UpdateProduct)
+		v1.GET("/products/search", catalog_service.SearchProducts)
+	}
 
 	router.Run(":3000")
 

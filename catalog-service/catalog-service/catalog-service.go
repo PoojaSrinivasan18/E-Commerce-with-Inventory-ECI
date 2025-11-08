@@ -13,10 +13,16 @@ import (
 )
 
 func GetProductById(c *gin.Context) {
-	productId, err := strconv.Atoi(c.Query("productId"))
+	// Try to get ID from URL parameter first, then query parameter
+	productIdStr := c.Param("id")
+	if productIdStr == "" {
+		productIdStr = c.Query("productId")
+	}
+
+	productId, err := strconv.Atoi(productIdStr)
 	if err != nil {
 		log.Errorf("Invalid product ID: %v", err)
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Invalid product ID"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID", "message": "Product ID must be a valid integer"})
 		return
 	}
 
@@ -189,5 +195,66 @@ func UpdateProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Product updated successfully",
 		"product": existingProduct,
+	})
+}
+
+func SearchProducts(c *gin.Context) {
+	var products []model.ProductModel
+	db := database.GetDB()
+
+	// Get query parameters
+	name := c.Query("name")
+	category := c.Query("category")
+	minPrice := c.Query("min_price")
+	maxPrice := c.Query("max_price")
+	isActive := c.Query("is_active")
+
+	// Build the query
+	query := db.Model(&model.ProductModel{})
+
+	if name != "" {
+		query = query.Where("LOWER(name) LIKE ?", "%"+name+"%")
+	}
+	if category != "" {
+		query = query.Where("LOWER(category) LIKE ?", "%"+category+"%")
+	}
+	if minPrice != "" {
+		query = query.Where("price >= ?", minPrice)
+	}
+	if maxPrice != "" {
+		query = query.Where("price <= ?", maxPrice)
+	}
+	if isActive == "true" {
+		query = query.Where("is_active = ?", true)
+	} else if isActive == "false" {
+		query = query.Where("is_active = ?", false)
+	}
+
+	// Execute query with pagination
+	limit := 50 // Default limit
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	if err := query.Limit(limit).Offset(offset).Find(&products).Error; err != nil {
+		log.Errorf("DB search error %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Database search failed"})
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, gin.H{
+		"products": products,
+		"count":    len(products),
+		"limit":    limit,
+		"offset":   offset,
 	})
 }

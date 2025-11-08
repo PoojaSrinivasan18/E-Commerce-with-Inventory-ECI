@@ -70,7 +70,7 @@ func SetupDB(configuration *common.Configuration) error {
 
 // Auto migrate project models
 func migrateModels() {
-	err = Repo.Database.AutoMigrate(&models.InventoryModel{})
+	err = Repo.Database.AutoMigrate(&models.InventoryModel{}, &models.ReservationRecord{})
 	if err != nil {
 		log.Error("Auto-migrate error: ", err)
 	}

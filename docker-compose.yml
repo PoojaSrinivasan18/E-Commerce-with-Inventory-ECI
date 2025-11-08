@@ -163,13 +163,16 @@ services:
     ports:
       - "8002:8002"
     depends_on:
-      - postgres_main
+      postgres_main:
+        condition: service_healthy
     environment:
       DB_HOST: postgres_main
       DB_PORT: 5432
       DB_USER: poojasrinivasan
       DB_PASSWORD: password
       DB_NAME: payment_db
+    volumes:
+      - ./payment-service/config:/app/config
     networks:
       - backend
 

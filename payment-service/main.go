@@ -44,15 +44,24 @@ func main() {
 	}
 
 	router := gin.Default()
-	router.GET("/api/getpaymentbyid", payment_service.GetPaymentById)
-	router.POST("/api/makepayment", payment_service.MakePayment)
-	router.DELETE("/api/deletepayment", payment_service.DeletePayment)
 
-	//router.POST("/api/loadseeddata", inventory.SeedInventoryDetail)*/
+	// Add health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "healthy", "service": "payment"})
+	})
+
+	// API versioning with /v1
+	v1 := router.Group("/v1")
+	{
+		v1.GET("/payments/:id", payment_service.GetPaymentById)
+		v1.POST("/payments/charge", payment_service.ChargePayment)
+		v1.POST("/payments/:id/refund", payment_service.RefundPayment)
+		v1.DELETE("/payments/:id", payment_service.DeletePayment)
+	}
 
 	//:: Note: For local testing use below
 	//router.Run("localhost:3000")
 
 	//:: For Docker use below
-	router.Run(":3000")
+	router.Run(":8002")
 }

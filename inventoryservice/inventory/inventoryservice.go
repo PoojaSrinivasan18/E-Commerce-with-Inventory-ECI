@@ -268,3 +268,275 @@ func SeedInventoryDetail(c *gin.Context) {
 
 	c.IndentedJSON(http.StatusOK, gin.H{"inserted": inserted})
 }
+
+// ReserveInventory reserves inventory for an order with TTL (15 minutes)
+func ReserveInventory(c *gin.Context) {
+	var req models.ReservationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	db := database.GetDB()
+
+	// Check for duplicate reservation with same idempotency key
+	var existingReservation models.ReservationRecord
+	if err := db.Where("idempotency_key = ?", req.IdempotencyKey).First(&existingReservation).Error; err == nil {
+		// Return existing reservation
+		c.JSON(http.StatusOK, gin.H{
+			"message":     "Reservation already exists",
+			"reservation": existingReservation,
+			"idempotent":  true,
+		})
+		return
+	}
+
+	// Start transaction for atomic reservation
+	tx := db.Begin()
+
+	// Find inventory to reserve from (try specific warehouse first, then any)
+	var inventoryItems []models.InventoryModel
+	query := "product_id = ? AND (on_hand - reserved) >= ?"
+	args := []interface{}{req.ProductId, req.Quantity}
+
+	if req.Warehouse != "" {
+		query += " AND ware_house = ?"
+		args = append(args, req.Warehouse)
+	}
+	query += " ORDER BY ware_house, on_hand DESC"
+
+	if err := tx.Where(query, args...).Find(&inventoryItems).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	if len(inventoryItems) == 0 {
+		tx.Rollback()
+		c.JSON(http.StatusConflict, gin.H{
+			"error":      "Insufficient inventory",
+			"product_id": req.ProductId,
+			"requested":  req.Quantity,
+		})
+		return
+	}
+
+	// Reserve from the first available warehouse with sufficient stock
+	var selectedItem *models.InventoryModel
+	for i := range inventoryItems {
+		if inventoryItems[i].OnHand-inventoryItems[i].Reserved >= req.Quantity {
+			selectedItem = &inventoryItems[i]
+			break
+		}
+	}
+
+	if selectedItem == nil {
+		tx.Rollback()
+		c.JSON(http.StatusConflict, gin.H{
+			"error":      "Insufficient inventory",
+			"product_id": req.ProductId,
+			"requested":  req.Quantity,
+		})
+		return
+	}
+
+	// Update inventory reserved count
+	selectedItem.Reserved += req.Quantity
+	selectedItem.UpdatedAt = time.Now()
+
+	if err := tx.Save(selectedItem).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reserve inventory"})
+		return
+	}
+
+	// Create reservation record with 15-minute TTL
+	reservation := models.ReservationRecord{
+		ProductId:      req.ProductId,
+		Warehouse:      selectedItem.WareHouse,
+		Quantity:       req.Quantity,
+		OrderId:        req.OrderId,
+		IdempotencyKey: req.IdempotencyKey,
+		Status:         "RESERVED",
+		ReservedAt:     time.Now(),
+		ExpiresAt:      time.Now().Add(15 * time.Minute),
+		UpdatedAt:      time.Now(),
+	}
+
+	if err := tx.Create(&reservation).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation record"})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Inventory reserved successfully",
+		"reservation": reservation,
+		"warehouse":   selectedItem.WareHouse,
+		"expires_at":  reservation.ExpiresAt,
+	})
+}
+
+// ReleaseInventory releases reserved inventory back to available stock
+func ReleaseInventory(c *gin.Context) {
+	var req models.ReleaseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	db := database.GetDB()
+	tx := db.Begin()
+
+	// Find reservation record
+	var reservation models.ReservationRecord
+	if err := tx.Where("idempotency_key = ? AND order_id = ? AND status = ?",
+		req.IdempotencyKey, req.OrderId, "RESERVED").First(&reservation).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found or already processed"})
+		return
+	}
+
+	// Find inventory record
+	var inventory models.InventoryModel
+	if err := tx.Where("product_id = ? AND ware_house = ?",
+		reservation.ProductId, reservation.Warehouse).First(&inventory).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Inventory record not found"})
+		return
+	}
+
+	// Release reserved quantity back to available stock
+	inventory.Reserved -= reservation.Quantity
+	inventory.UpdatedAt = time.Now()
+
+	if err := tx.Save(&inventory).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to release inventory"})
+		return
+	}
+
+	// Update reservation status
+	reservation.Status = "RELEASED"
+	reservation.UpdatedAt = time.Now()
+
+	if err := tx.Save(&reservation).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update reservation record"})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":           "Inventory released successfully",
+		"reservation":       reservation,
+		"released_quantity": reservation.Quantity,
+	})
+}
+
+// ShipInventory marks reserved inventory as shipped
+func ShipInventory(c *gin.Context) {
+	var req models.ShipRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	db := database.GetDB()
+	tx := db.Begin()
+
+	// Find reservation record
+	var reservation models.ReservationRecord
+	if err := tx.Where("idempotency_key = ? AND order_id = ? AND status = ?",
+		req.IdempotencyKey, req.OrderId, "RESERVED").First(&reservation).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found or already processed"})
+		return
+	}
+
+	// Find inventory record
+	var inventory models.InventoryModel
+	if err := tx.Where("product_id = ? AND ware_house = ?",
+		reservation.ProductId, reservation.Warehouse).First(&inventory).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Inventory record not found"})
+		return
+	}
+
+	// Ship: reduce both on_hand and reserved quantities
+	inventory.OnHand -= reservation.Quantity
+	inventory.Reserved -= reservation.Quantity
+	inventory.UpdatedAt = time.Now()
+
+	if err := tx.Save(&inventory).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to ship inventory"})
+		return
+	}
+
+	// Update reservation status
+	reservation.Status = "SHIPPED"
+	reservation.UpdatedAt = time.Now()
+
+	if err := tx.Save(&reservation).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update reservation record"})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":          "Inventory shipped successfully",
+		"reservation":      reservation,
+		"shipped_quantity": reservation.Quantity,
+	})
+}
+
+// CheckAvailability checks product availability across warehouses
+func CheckAvailability(c *gin.Context) {
+	productIdStr := c.Param("productId")
+	productId, err := strconv.Atoi(productIdStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	db := database.GetDB()
+
+	var inventoryItems []models.InventoryModel
+	if err := db.Where("product_id = ?", productId).Find(&inventoryItems).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	totalAvailable := 0
+	totalOnHand := 0
+	totalReserved := 0
+	warehouses := make([]gin.H, 0)
+
+	for _, item := range inventoryItems {
+		available := item.OnHand - item.Reserved
+		totalAvailable += available
+		totalOnHand += item.OnHand
+		totalReserved += item.Reserved
+
+		warehouses = append(warehouses, gin.H{
+			"warehouse": item.WareHouse,
+			"on_hand":   item.OnHand,
+			"reserved":  item.Reserved,
+			"available": available,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"product_id":      productId,
+		"total_available": totalAvailable,
+		"total_on_hand":   totalOnHand,
+		"total_reserved":  totalReserved,
+		"warehouses":      warehouses,
+	})
+}
