@@ -334,14 +334,6 @@ curl -f http://localhost:8083/v1/health || echo "Inventory service down"
 curl -f http://localhost:8084/v1/health || echo "Payment service down"
 ```
 
-### Inter-Service Workflow Test
-```bash
-# Complete e-commerce transaction test
-python3 interservice-workflow.py
-
-# Expected output: Successful order placement with all services
-```
-
 ### Database Validation
 ```bash
 # Verify PostgreSQL databases
