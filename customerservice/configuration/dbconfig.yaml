@@ -3,5 +3,5 @@ Database:
   Dbname: customer_db
   username: poojasrinivasan
   password: password
-  host: postgres
+  host: postgres_main
   port: 5432

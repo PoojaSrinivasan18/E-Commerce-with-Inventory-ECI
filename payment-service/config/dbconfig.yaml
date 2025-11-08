@@ -3,5 +3,5 @@ Database:
   Dbname: payment_db
   username: poojasrinivasan
   password: password
-  host: postgres_payment
+  host: postgres_main
   port: 5432

@@ -19,21 +19,26 @@ services:
       timeout: 5s
       retries: 10
 
-  inventoryservice:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: customerservice
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./config:/app/config
-    environment:
-      - APP_NAME=customerservice
-    restart: on-failure
-
-volumes:
-  postgres_data:
+#  customerservice:   # ✅ renamed from inventoryservice
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    container_name: customerservice
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+##    ports:
+#      - "3000:3000"
+#    volumes:
+#      - ./config:/app/config
+#    environment:
+#      - APP_NAME=customerservice
+#      - DB_HOST=postgres
+#      - DB_USER=poojasrinivasan
+#      - DB_PASSWORD=password
+#      - DB_NAME=customer_db
+#      - DB_PORT=5432
+#    restart: on-failure
+#
+#volumes:
+#  postgres_data:
