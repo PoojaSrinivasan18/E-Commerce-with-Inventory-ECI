@@ -16,7 +16,7 @@
 
 ## Project Overview
 
-This project implements a complete **E-commerce platform with Inventory Management** using microservices architecture, addressing all requirements from Problem Statement 4.
+This project implements a complete **E-commerce platform with Inventory Management** using microservices architecture.
 
 ### Completed Features
 
@@ -370,12 +370,6 @@ This will display all commands needed for a complete demonstration covering:
 5. Kubernetes deployment
 6. Monitoring dashboard access
 
-### Recording Setup
-- Use the commands from `demo-script.sh`
-- Record each segment separately for editing
-- Show both terminal output and browser dashboards
-- Demonstrate the complete order-to-shipment workflow
-
 ## Troubleshooting
 
 ### Common Issues
@@ -439,11 +433,6 @@ docker stats
 kubectl top nodes
 kubectl top pods
 ```
-
-### Support
-- **GitHub Issues**: Report bugs and feature requests
-- **Documentation**: Check service-specific README files
-- **Logs**: Enable debug logging with `LOG_LEVEL=debug`
 
 ---
 
