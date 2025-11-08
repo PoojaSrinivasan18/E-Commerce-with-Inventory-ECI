@@ -169,9 +169,9 @@ python3 interservice-workflow.py
 ### Environment Variables
 ```bash
 # Database Configuration
-POSTGRES_USER=poojasrinivasan
-POSTGRES_PASSWORD=password
-MYSQL_ROOT_PASSWORD=rootpassword
+POSTGRES_USER=${POSTGRES_USER}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
 
 # Service Configuration
 CATALOG_DB_HOST=postgres_main
@@ -353,22 +353,6 @@ docker exec mysql_db mysql -u root -prootpassword -e "SHOW DATABASES;"
 # Verify data persistence
 docker exec postgres_main psql -U poojasrinivasan -d catalog_db -c "SELECT COUNT(*) FROM products;"
 ```
-
-## Demo Instructions
-
-### Quick Demo
-```bash
-# Run the demo command guide
-./demo-script.sh
-```
-
-This will display all commands needed for a complete demonstration covering:
-1. Docker Compose setup
-2. Health checks across all services
-3. Inter-service communication workflow
-4. Database integration verification
-5. Kubernetes deployment
-6. Monitoring dashboard access
 
 ## Troubleshooting
 
