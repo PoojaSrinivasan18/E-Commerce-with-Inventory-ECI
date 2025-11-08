@@ -1,5 +1,9 @@
 version: '3.9'
 
+networks:
+  backend:
+    driver: bridge
+
 services:
   # =========================
   # MySQL for Orders + Shipments
@@ -19,9 +23,11 @@ services:
       interval: 10s
       retries: 5
       timeout: 5s
+    networks:
+      - backend
 
   # =========================
-  # Postgres Databases
+  # Postgres Main (all DBs in one container)
   # =========================
   postgres_main:
     image: postgres:16-alpine
@@ -30,17 +36,20 @@ services:
     environment:
       POSTGRES_USER: poojasrinivasan
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: catalog_db  # Default, others created via init script
+      POSTGRES_DB: catalog_db
     ports:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U poojasrinivasan -d catalog_db" ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U poojasrinivasan -d catalog_db && psql -U poojasrinivasan -d payment_db -c 'SELECT 1;' > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    networks:
+      - backend
 
   # =========================
   # Services
@@ -63,6 +72,8 @@ services:
       DB_NAME: catalog_db
     volumes:
       - ./catalog-service/config:/app/config
+    networks:
+      - backend
 
   customerservice:
     build:
@@ -82,6 +93,8 @@ services:
       DB_NAME: customer_db
     volumes:
       - ./customerservice/config:/app/config
+    networks:
+      - backend
 
   inventoryservice:
     build:
@@ -101,6 +114,8 @@ services:
       DB_NAME: inventory_db
     volumes:
       - ./inventoryservice/config:/app/config
+    networks:
+      - backend
 
   order_service:
     build:
@@ -118,6 +133,8 @@ services:
       DB_USER: root
       DB_PASSWORD: yourpassword
       DB_NAME: order_db
+    networks:
+      - backend
 
   shipment_service:
     build:
@@ -135,6 +152,8 @@ services:
       DB_USER: root
       DB_PASSWORD: yourpassword
       DB_NAME: order_db
+    networks:
+      - backend
 
   payment_service:
     build:
@@ -151,6 +170,8 @@ services:
       DB_USER: poojasrinivasan
       DB_PASSWORD: password
       DB_NAME: payment_db
+    networks:
+      - backend
 
   notification_service:
     build:
@@ -160,7 +181,16 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - payment_service
+      postgres_main:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres_main
+      DB_PORT: 5432
+      DB_NAME: notifications
+      DB_USER: poojasrinivasan
+      DB_PASSWORD: password
+    networks:
+      - backend
 
 volumes:
   mysql_data:

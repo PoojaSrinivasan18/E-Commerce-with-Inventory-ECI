@@ -2,19 +2,26 @@
 # First pull Golang image
 FROM golang:1.25.3-alpine as build-env
 
-# Set envirment variable
+# Set environment variables
 ENV APP_NAME catalogservice
-ENV CMD_PATH main.go
 
+# Install git (needed for some Go modules)
+RUN apk add --no-cache git
 
-# Copy application data into image
-COPY . $GOPATH/src/$APP_NAME
-COPY ./config/dbconfig.yaml $GOPATH/src/config/dbconfig.yaml
-WORKDIR $GOPATH/src/$APP_NAME
+# Set working directory for module-aware build
+WORKDIR /app
 
-# Build application
-#RUN CGO_ENABLED=0 go build -o /$APP_NAME $GOPATH/src/$APP_NAME/$CMD_PATH
-RUN go build -o /$APP_NAME $GOPATH/src/$APP_NAME/$CMD_PATH
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+
+# Download dependencies (this layer will be cached if go.mod/go.sum don't change)
+RUN go mod download
+
+# Copy application source code
+COPY . .
+
+# Build application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /$APP_NAME .
 
 # Run Stage
 FROM alpine

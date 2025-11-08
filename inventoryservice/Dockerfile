@@ -2,21 +2,29 @@
 # First pull Golang image
 FROM golang:1.23.3-alpine as build-env
 
-# Set envirment variable
+# Set environment variables
 ENV APP_NAME inventoryservice
-ENV CMD_PATH main.go
 
 # Maintainer Info
 LABEL maintainer="Rajkumar Palani"
 
-# Copy application data into image
-COPY . $GOPATH/src/$APP_NAME
-COPY ./configuration/dbconfig.yaml $GOPATH/src/configuration/dbconfig.yaml
-WORKDIR $GOPATH/src/$APP_NAME
+# Install git (needed for some Go modules)
+RUN apk add --no-cache git
 
-# Build application
-#RUN CGO_ENABLED=0 go build -o /$APP_NAME $GOPATH/src/$APP_NAME/$CMD_PATH
-RUN go build -o /$APP_NAME $GOPATH/src/$APP_NAME/$CMD_PATH
+# Set working directory for module-aware build
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+
+# Download dependencies (this layer will be cached if go.mod/go.sum don't change)
+RUN go mod download
+
+# Copy application source code
+COPY . .
+
+# Build application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /$APP_NAME .
 
 # Run Stage
 FROM alpine

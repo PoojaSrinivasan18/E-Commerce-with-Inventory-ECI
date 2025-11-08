@@ -32,8 +32,11 @@ func SetupDB(configuration *common.Configuration) error {
 	port := configuration.Database.Port
 
 	//host := os.Getenv("MY_POD_IP")
+	log.Infof("in line 35")
 	host := configuration.Database.Host
 	if host != "" {
+		log.Infof("line xxx")
+		host = "postgres_main"
 		log.Info("Host IP is ", host)
 	} else {
 		log.Error("Host is Empty in Env Variable")

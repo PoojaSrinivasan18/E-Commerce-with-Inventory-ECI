@@ -7,7 +7,7 @@ __pycache__/
 *.log
 .git
 .vscode
-csv_files/*.csv
+# csv_files/*.csv  # Allow CSV files to be included
 node_modules
 dist
 .DS_Store
