@@ -1,0 +1,132 @@
+# Monitoring namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+# Prometheus ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    rule_files:
+      - "ecommerce.rules.yml"
+    
+    scrape_configs:
+      # Kubernetes API server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+      
+      # Kubernetes nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+        - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+      
+      # E-commerce services
+      - job_name: 'ecommerce-services'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - ecommerce
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: kubernetes_name
+
+  ecommerce.rules.yml: |
+    groups:
+    - name: ecommerce.rules
+      rules:
+      # Orders per minute
+      - record: ecommerce:orders_per_minute
+        expr: rate(orders_placed_total[1m]) * 60
+      
+      # Payment success rate
+      - record: ecommerce:payment_success_rate
+        expr: (
+          rate(payments_completed_total[5m]) / 
+          (rate(payments_completed_total[5m]) + rate(payments_failed_total[5m]))
+        ) * 100
+      
+      # Inventory reservations per minute
+      - record: ecommerce:reservations_per_minute
+        expr: rate(inventory_reservations_total[1m]) * 60
+      
+      # Average order value
+      - record: ecommerce:average_order_value
+        expr: rate(order_total_amount[5m]) / rate(orders_placed_total[5m])
+      
+      # Service availability
+      - record: ecommerce:service_availability
+        expr: up{job="ecommerce-services"}
+      
+    # Alerts
+    - name: ecommerce.alerts
+      rules:
+      - alert: ServiceDown
+        expr: up{job="ecommerce-services"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "E-commerce service {{ $labels.kubernetes_name }} is down"
+          description: "Service {{ $labels.kubernetes_name }} in namespace {{ $labels.kubernetes_namespace }} has been down for more than 2 minutes."
+      
+      - alert: HighPaymentFailureRate
+        expr: ecommerce:payment_success_rate < 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High payment failure rate"
+          description: "Payment success rate is {{ $value }}% which is below the 90% threshold."
+      
+      - alert: LowInventoryAlert
+        expr: inventory_available_stock < 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low inventory for product {{ $labels.product_id }}"
+          description: "Product {{ $labels.product_id }} has only {{ $value }} units available."

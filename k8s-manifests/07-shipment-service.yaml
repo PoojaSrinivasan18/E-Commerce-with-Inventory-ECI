@@ -1,0 +1,97 @@
+# Shipment Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipment-service
+  namespace: ecommerce
+  labels:
+    app: shipment-service
+    service: shipment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: shipment-service
+  template:
+    metadata:
+      labels:
+        app: shipment-service
+        service: shipment
+    spec:
+      containers:
+      - name: shipment-service
+        image: e-commerce-with-inventory-eci-shipment_service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8001
+        env:
+        - name: DB_HOST
+          value: "mysql-db"
+        - name: DB_PORT
+          value: "3306"
+        - name: DB_USER
+          value: "root"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: mysql-password
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: MYSQL_DATABASE
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          httpGet:
+            path: /docs
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /docs
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+---
+# Shipment Service ClusterIP Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipment-service
+  namespace: ecommerce
+  labels:
+    app: shipment-service
+spec:
+  selector:
+    app: shipment-service
+  ports:
+  - port: 8001
+    targetPort: 8001
+    name: http
+  type: ClusterIP
+---
+# Shipment Service NodePort for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipment-service-nodeport
+  namespace: ecommerce
+  labels:
+    app: shipment-service
+spec:
+  selector:
+    app: shipment-service
+  ports:
+  - port: 8001
+    targetPort: 8001
+    nodePort: 30006
+    name: http
+  type: NodePort

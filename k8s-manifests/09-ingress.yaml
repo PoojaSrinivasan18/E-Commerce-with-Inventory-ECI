@@ -1,0 +1,104 @@
+# Ingress Controller for E-commerce API Gateway
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-api-ingress
+  namespace: ecommerce
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      rewrite ^(/api/v1/catalog)$ $1/ redirect;
+      rewrite ^(/api/v1/inventory)$ $1/ redirect;
+      rewrite ^(/api/v1/customer)$ $1/ redirect;
+      rewrite ^(/api/v1/payment)$ $1/ redirect;
+      rewrite ^(/api/v1/order)$ $1/ redirect;
+      rewrite ^(/api/v1/shipment)$ $1/ redirect;
+      rewrite ^(/api/v1/notification)$ $1/ redirect;
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ecommerce.local
+    http:
+      paths:
+      # Catalog Service Routes
+      - path: /api/v1/catalog(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: catalog-service
+            port:
+              number: 3000
+      
+      # Inventory Service Routes
+      - path: /api/v1/inventory(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: inventory-service
+            port:
+              number: 3000
+      
+      # Customer Service Routes  
+      - path: /api/v1/customer(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: customer-service
+            port:
+              number: 3000
+      
+      # Payment Service Routes
+      - path: /api/v1/payment(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: payment-service
+            port:
+              number: 8002
+      
+      # Order Service Routes
+      - path: /api/v1/order(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 8000
+      
+      # Shipment Service Routes
+      - path: /api/v1/shipment(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: shipment-service
+            port:
+              number: 8001
+      
+      # Notification Service Routes
+      - path: /api/v1/notification(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 8080
+---
+# Service Monitor for Prometheus (if using)
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-metrics
+  namespace: ecommerce
+  labels:
+    app: ecommerce-metrics
+spec:
+  selector:
+    service: ecommerce
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP

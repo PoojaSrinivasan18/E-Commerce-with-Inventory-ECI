@@ -1,0 +1,209 @@
+# Namespace for E-commerce services
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce
+  labels:
+    name: ecommerce
+---
+# ConfigMap for common database configurations
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: ecommerce
+data:
+  POSTGRES_DB: "catalog_db"
+  POSTGRES_USER: "poojasrinivasan" 
+  MYSQL_DATABASE: "order_db"
+  MYSQL_USER: "root"
+---
+# Secret for database passwords
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+  namespace: ecommerce
+type: Opaque
+data:
+  # password (base64 encoded)
+  postgres-password: cGFzc3dvcmQ=  
+  # yourpassword (base64 encoded)
+  mysql-password: eW91cnBhc3N3b3Jk
+---
+# PostgreSQL StatefulSet for main database
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-main
+  namespace: ecommerce
+spec:
+  serviceName: postgres-main
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-main
+  template:
+    metadata:
+      labels:
+        app: postgres-main
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: postgres-password
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: POSTGRES_DB
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d/init-multiple-dbs.sh
+          subPath: init-multiple-dbs.sh
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U poojasrinivasan -d catalog_db
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U poojasrinivasan -d catalog_db
+          initialDelaySeconds: 60
+          periodSeconds: 30
+      volumes:
+      - name: init-script
+        configMap:
+          name: postgres-init
+          defaultMode: 0755
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 2Gi
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-main
+  namespace: ecommerce
+spec:
+  selector:
+    app: postgres-main
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+---
+# MySQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-db
+  namespace: ecommerce
+spec:
+  serviceName: mysql-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-db
+  template:
+    metadata:
+      labels:
+        app: mysql-db
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: mysql-password
+        - name: MYSQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: MYSQL_DATABASE
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - mysqladmin ping -h localhost -p${MYSQL_ROOT_PASSWORD}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - mysqladmin ping -h localhost -p${MYSQL_ROOT_PASSWORD}
+          initialDelaySeconds: 60
+          periodSeconds: 30
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 2Gi
+---
+# MySQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-db
+  namespace: ecommerce
+spec:
+  selector:
+    app: mysql-db
+  ports:
+  - port: 3306
+    targetPort: 3306
+  type: ClusterIP

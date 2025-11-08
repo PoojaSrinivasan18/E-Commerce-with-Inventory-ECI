@@ -1,0 +1,197 @@
+# E-commerce Dashboard ConfigMap for Grafana
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-ecommerce-dashboard
+  namespace: monitoring
+data:
+  ecommerce-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "E-commerce Platform Monitoring",
+        "tags": ["ecommerce", "microservices"],
+        "style": "dark",
+        "timezone": "browser",
+        "refresh": "30s",
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 1,
+            "title": "Service Status Overview",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job=\"ecommerce-services\"}",
+                "legendFormat": "{{kubernetes_name}}"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "steps": [
+                    {"color": "red", "value": 0},
+                    {"color": "green", "value": 1}
+                  ]
+                }
+              }
+            },
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Orders Placed (per minute)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "ecommerce:orders_per_minute",
+                "legendFormat": "Orders/min"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Orders",
+                "min": 0
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "id": 3,
+            "title": "Payment Success Rate (%)",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "ecommerce:payment_success_rate",
+                "legendFormat": "Success Rate"
+              }
+            ],
+            "valueName": "current",
+            "format": "percent",
+            "thresholds": "80,90",
+            "colorBackground": true,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Inventory Reservations (per minute)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "ecommerce:reservations_per_minute",
+                "legendFormat": "Reservations/min"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Reservations",
+                "min": 0
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+          },
+          {
+            "id": 5,
+            "title": "Average Order Value",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "ecommerce:average_order_value",
+                "legendFormat": "AOV"
+              }
+            ],
+            "valueName": "current",
+            "format": "currencyUSD",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+          },
+          {
+            "id": 6,
+            "title": "HTTP Request Rate by Service",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total[5m])",
+                "legendFormat": "{{kubernetes_name}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Requests/sec",
+                "min": 0
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+          },
+          {
+            "id": 7,
+            "title": "HTTP Response Time (95th percentile)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "{{kubernetes_name}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Response Time (s)",
+                "min": 0
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+          },
+          {
+            "id": 8,
+            "title": "Database Connection Pool Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "database_connections_active / database_connections_max",
+                "legendFormat": "{{database_name}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Connection Pool %",
+                "min": 0,
+                "max": 1
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+          },
+          {
+            "id": 9,
+            "title": "Low Stock Alerts",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "inventory_available_stock < 10",
+                "format": "table",
+                "instant": true
+              }
+            ],
+            "transform": [
+              {
+                "id": "organize",
+                "options": {
+                  "excludeByName": {},
+                  "indexByName": {},
+                  "renameByName": {
+                    "product_id": "Product ID",
+                    "warehouse": "Warehouse",
+                    "Value": "Stock Level"
+                  }
+                }
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+          }
+        ]
+      }
+    }
