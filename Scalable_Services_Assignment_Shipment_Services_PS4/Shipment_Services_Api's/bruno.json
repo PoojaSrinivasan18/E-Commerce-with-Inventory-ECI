@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Shipment_Services_Api's",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

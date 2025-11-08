@@ -1,0 +1,34 @@
+version: '3.9'
+
+services:
+  catalogservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: catalogservice
+    ports:
+      - "3000:3000"
+    environment:
+      - APP_NAME=catalogservice
+    depends_on:
+      - postgres
+    volumes:
+      - ./config:/app/config
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=poojasrinivasan
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=catalog_db
+      - APP_NAME=catalogservice
+      - APP_DB_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

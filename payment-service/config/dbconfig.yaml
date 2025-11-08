@@ -1,0 +1,7 @@
+Database:
+  Driver: postgres
+  Dbname: payment_db
+  username: poojasrinivasan
+  password: password
+  host: postgres_payment
+  port: 5432

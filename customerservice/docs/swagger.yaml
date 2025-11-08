@@ -1,0 +1,118 @@
+basePath: /api
+definitions:
+  models.CustomerDetail:
+    properties:
+      created_at:
+        type: string
+      customer_id:
+        type: integer
+      email_address:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+      phonenumber:
+        type: string
+    type: object
+  models.Response:
+    properties:
+      message:
+        example: Success message or error details
+        type: string
+    type: object
+  models.TokenResponse:
+    properties:
+      access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  models.UserLoginModel:
+    properties:
+      email_address:
+        type: string
+      password:
+        type: string
+    type: object
+host: localhost:3003
+info:
+  contact: {}
+  description: API for Customer service
+  title: Customer Details API
+  version: "1.0"
+paths:
+  /customerlogin:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate a user and return a JWT token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserLoginModel'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Customer login
+      tags:
+      - user
+  /customersignup:
+    post:
+      consumes:
+      - application/json
+      description: Create a new customer account
+      parameters:
+      - description: Customer registration details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.CustomerDetail'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Register a new customer
+      tags:
+      - user
+securityDefinitions:
+  Bearer:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

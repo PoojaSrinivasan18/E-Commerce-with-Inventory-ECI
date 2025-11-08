@@ -1,0 +1,29 @@
+meta {
+  name: Add a new Shipment
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://127.0.0.1:8001/shipments
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "shipment_id": 999,
+    "order_id": 999,
+    "carrier": "BlueDart",
+    "status": "SHIPPED",
+    "tracking_no": "TRK99999",
+    "shipped_at": "2025-10-17T19:00:00",
+    "delivered_at": null
+  }
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

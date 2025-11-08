@@ -1,0 +1,7 @@
+Database:
+  Driver: postgres
+  Dbname: catalog_db
+  username: poojasrinivasan
+  password: password
+  host: postgres
+  port: 5432

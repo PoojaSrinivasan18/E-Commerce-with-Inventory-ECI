@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db_shipments
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-shipping_db}
+    volumes:
+      - mysql_shipments_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p\"${MYSQL_ROOT_PASSWORD:-rootpassword}\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  shipment_service:
+    build: .
+    container_name: shipment_service
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./:/app
+
+volumes:
+  mysql_shipments_data:
